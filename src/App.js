@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 
-// Real-time communication using localStorage
+// Enhanced real-time communication using localStorage
 const createRealTimeConnection = () => {
   return {
     emit: (event, data) => {
-      localStorage.setItem(`polling_${event}`, JSON.stringify({
+      const eventData = {
         ...data,
         timestamp: Date.now()
-      }));
+      };
+      localStorage.setItem(`polling_${event}`, JSON.stringify(eventData));
       // Trigger storage event for other tabs
       window.dispatchEvent(new StorageEvent('storage', {
         key: `polling_${event}`,
-        newValue: JSON.stringify(data)
+        newValue: JSON.stringify(eventData)
       }));
     },
     
@@ -19,7 +20,8 @@ const createRealTimeConnection = () => {
       const handler = (e) => {
         if (e.key === `polling_${event}`) {
           try {
-            callback(JSON.parse(e.newValue));
+            const data = JSON.parse(e.newValue);
+            callback(data);
           } catch (error) {
             console.error('Error parsing storage event:', error);
           }
@@ -31,62 +33,173 @@ const createRealTimeConnection = () => {
     
     off: (event, handler) => {
       window.removeEventListener('storage', handler);
+    },
+
+    // Get current data from localStorage
+    getCurrentData: (event) => {
+      try {
+        const data = localStorage.getItem(`polling_${event}`);
+        return data ? JSON.parse(data) : null;
+      } catch (error) {
+        console.error('Error reading storage:', error);
+        return null;
+      }
     }
   };
 };
 
-// Replace mock socket with real implementation
+// Data management utilities
+const dataManager = {
+  saveUser: (userData) => {
+    const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
+    const existingIndex = users.findIndex(u => u.email === userData.email);
+    
+    if (existingIndex >= 0) {
+      users[existingIndex] = { ...users[existingIndex], ...userData };
+    } else {
+      users.push({ ...userData, id: Date.now().toString() });
+    }
+    
+    localStorage.setItem('polling_users', JSON.stringify(users));
+    return userData;
+  },
+
+  getUser: (email) => {
+    const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
+    return users.find(u => u.email === email);
+  },
+
+  getAllUsers: () => {
+    return JSON.parse(localStorage.getItem('polling_users') || '[]');
+  },
+
+  saveStudentData: (studentData) => {
+    const students = JSON.parse(localStorage.getItem('polling_student_data') || '[]');
+    const existingIndex = students.findIndex(s => s.email === studentData.email);
+    
+    if (existingIndex >= 0) {
+      students[existingIndex] = { ...students[existingIndex], ...studentData };
+    } else {
+      students.push({ ...studentData, joinedAt: Date.now() });
+    }
+    
+    localStorage.setItem('polling_student_data', JSON.stringify(students));
+  },
+
+  getStudentData: (email) => {
+    const students = JSON.parse(localStorage.getItem('polling_student_data') || '[]');
+    return students.find(s => s.email === email);
+  },
+
+  getAllStudentData: () => {
+    return JSON.parse(localStorage.getItem('polling_student_data') || '[]');
+  },
+
+  savePollResult: (pollResult) => {
+    const results = JSON.parse(localStorage.getItem('polling_results') || '[]');
+    results.push({ ...pollResult, id: Date.now().toString(), timestamp: Date.now() });
+    localStorage.setItem('polling_results', JSON.stringify(results));
+  },
+
+  getPollResults: () => {
+    return JSON.parse(localStorage.getItem('polling_results') || '[]');
+  }
+};
+
 const socket = createRealTimeConnection();
 
-// Mock components (you'll need to create these)
-const RoleSelection = ({ onRoleSelect }) => (
-  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-      <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Live Polling System</h1>
-      <div className="space-y-4">
-        <button
-          onClick={() => onRoleSelect('teacher')}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
-        >
-          I'm a Teacher
-        </button>
-        <button
-          onClick={() => onRoleSelect('student')}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
-        >
-          I'm a Student
-        </button>
+// Login Component
+const LoginForm = ({ onLogin }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: ''
+  });
+  const [isLogin, setIsLogin] = useState(true);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (formData.name.trim() && formData.email.trim() && formData.role) {
+      const userData = dataManager.saveUser(formData);
+      onLogin(userData);
+    }
+  };
+
+  const handleQuickLogin = () => {
+    const existingUser = dataManager.getUser(formData.email);
+    if (existingUser) {
+      onLogin(existingUser);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Live Polling System</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            >
+              <option value="">Select Role</option>
+              <option value="teacher">Teacher</option>
+              <option value="student">Student</option>
+            </select>
+          </div>
+          
+          <button
+            type="submit"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
+          >
+            {isLogin ? 'Login' : 'Register'} & Continue
+          </button>
+        </form>
+        
+        {formData.email && (
+          <div className="mt-4">
+            <button
+              onClick={handleQuickLogin}
+              className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+            >
+              Quick Login (if account exists)
+            </button>
+          </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const StudentNameInput = ({ studentName, setStudentName, onSubmit }) => (
-  <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 flex items-center justify-center p-4">
-    <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-      <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Enter Your Name</h2>
-      <div className="space-y-4">
-        <input
-          type="text"
-          value={studentName}
-          onChange={(e) => setStudentName(e.target.value)}
-          placeholder="Your name"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-          onKeyPress={(e) => e.key === 'Enter' && onSubmit()}
-        />
-        <button
-          onClick={onSubmit}
-          disabled={!studentName.trim()}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
-        >
-          Join Session
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
+// Enhanced Teacher Dashboard
 const TeacherDashboard = ({ 
+  user,
   currentQuestion, 
   connectedStudents, 
   results, 
@@ -94,13 +207,16 @@ const TeacherDashboard = ({
   isCreatingPoll, 
   setIsCreatingPoll, 
   onCreatePoll, 
-  onEndPoll 
+  onEndPoll,
+  onLogout
 }) => {
   const [pollData, setPollData] = useState({
     question: '',
     options: ['', ''],
     timeLimit: 60
   });
+  const [showStudentData, setShowStudentData] = useState(false);
+  const [showPollHistory, setShowPollHistory] = useState(false);
 
   const handleCreatePoll = () => {
     if (pollData.question.trim() && pollData.options.every(opt => opt.trim())) {
@@ -113,6 +229,15 @@ const TeacherDashboard = ({
     setPollData(prev => ({ ...prev, options: [...prev.options, ''] }));
   };
 
+  const removeOption = (index) => {
+    if (pollData.options.length > 2) {
+      setPollData(prev => ({
+        ...prev,
+        options: prev.options.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
   const updateOption = (index, value) => {
     setPollData(prev => ({
       ...prev,
@@ -120,11 +245,112 @@ const TeacherDashboard = ({
     }));
   };
 
+  const allStudentData = dataManager.getAllStudentData();
+  const pollHistory = dataManager.getPollResults();
+
+  // Signal teacher presence
+  useEffect(() => {
+    socket.emit('teacher-presence', { teacherName: user.name, status: 'online' });
+    
+    return () => {
+      socket.emit('teacher-presence', { teacherName: user.name, status: 'offline' });
+    };
+  }, [user.name]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Teacher Dashboard</h1>
-        
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Teacher Dashboard</h1>
+              <p className="text-gray-600">Welcome, {user.name}!</p>
+            </div>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowStudentData(!showStudentData)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition duration-200"
+              >
+                {showStudentData ? 'Hide' : 'Show'} Student Data
+              </button>
+              <button
+                onClick={() => setShowPollHistory(!showPollHistory)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition duration-200"
+              >
+                Poll History
+              </button>
+              <button
+                onClick={onLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Student Data Display */}
+        {showStudentData && (
+          <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+            <h2 className="text-xl font-bold mb-4">All Student Data ({allStudentData.length})</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-4 py-2 text-left">Name</th>
+                    <th className="px-4 py-2 text-left">Email</th>
+                    <th className="px-4 py-2 text-left">Joined</th>
+                    <th className="px-4 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allStudentData.map((student, index) => (
+                    <tr key={index} className="border-b">
+                      <td className="px-4 py-2">{student.name}</td>
+                      <td className="px-4 py-2">{student.email}</td>
+                      <td className="px-4 py-2">{new Date(student.joinedAt).toLocaleString()}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          connectedStudents.find(s => s.email === student.email)
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {connectedStudents.find(s => s.email === student.email) ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Poll History */}
+        {showPollHistory && (
+          <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+            <h2 className="text-xl font-bold mb-4">Poll History ({pollHistory.length})</h2>
+            <div className="space-y-4">
+              {pollHistory.map((poll, index) => (
+                <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                  <h3 className="font-semibold">{poll.question}</h3>
+                  <p className="text-sm text-gray-600">{new Date(poll.timestamp).toLocaleString()}</p>
+                  <div className="mt-2 space-y-1">
+                    {Object.entries(poll.results).map(([option, votes]) => (
+                      <div key={option} className="flex justify-between text-sm">
+                        <span>{option}</span>
+                        <span className="font-medium">{votes} votes</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Create Poll Button */}
         {!currentQuestion && !isCreatingPoll && (
           <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
             <button
@@ -136,6 +362,7 @@ const TeacherDashboard = ({
           </div>
         )}
 
+        {/* Create Poll Form */}
         {isCreatingPoll && (
           <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
             <h2 className="text-xl font-bold mb-4">Create New Poll</h2>
@@ -149,14 +376,23 @@ const TeacherDashboard = ({
               />
               
               {pollData.options.map((option, index) => (
-                <input
-                  key={index}
-                  type="text"
-                  value={option}
-                  onChange={(e) => updateOption(index, e.target.value)}
-                  placeholder={`Option ${index + 1}`}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div key={index} className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => updateOption(index, e.target.value)}
+                    placeholder={`Option ${index + 1}`}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {pollData.options.length > 2 && (
+                    <button
+                      onClick={() => removeOption(index)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition duration-200"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               ))}
               
               <button
@@ -196,20 +432,35 @@ const TeacherDashboard = ({
           </div>
         )}
 
+        {/* Active Poll */}
         {currentQuestion && (
           <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
             <h2 className="text-xl font-bold mb-4">Active Poll</h2>
             <p className="text-lg mb-4">{currentQuestion.question}</p>
             
             <div className="space-y-2 mb-4">
-              {currentQuestion.options.map((option, index) => (
-                <div key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                  <span>{option}</span>
-                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                    {results[option] || 0} votes
-                  </span>
-                </div>
-              ))}
+              {currentQuestion.options.map((option, index) => {
+                const votes = results[option] || 0;
+                const totalVotes = Object.values(results).reduce((sum, v) => sum + v, 0);
+                const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                
+                return (
+                  <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex justify-between items-center mb-1">
+                      <span>{option}</span>
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                        {votes} votes ({percentage}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             
             <button
@@ -221,12 +472,16 @@ const TeacherDashboard = ({
           </div>
         )}
 
+        {/* Connected Students */}
         <div className="bg-white rounded-lg shadow-xl p-6">
           <h2 className="text-xl font-bold mb-4">Connected Students ({connectedStudents.length})</h2>
           <div className="space-y-2">
             {connectedStudents.map((student) => (
               <div key={student.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                <span>{student.name}</span>
+                <div>
+                  <span className="font-medium">{student.name}</span>
+                  <span className="text-sm text-gray-600 ml-2">({student.email})</span>
+                </div>
                 <span className={`px-3 py-1 rounded-full text-sm ${
                   student.answered ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                 }`}>
@@ -241,22 +496,91 @@ const TeacherDashboard = ({
   );
 };
 
+// Enhanced Student Dashboard
 const StudentDashboard = ({ 
-  studentName, 
+  user,
   currentQuestion, 
   hasAnswered, 
   selectedAnswer, 
   results, 
   showResults, 
   timeLeft, 
-  onAnswerSubmit 
+  onAnswerSubmit,
+  onLogout,
+  teacherOnline
 }) => {
+  const [pollHistory, setPollHistory] = useState([]);
+
+  useEffect(() => {
+    setPollHistory(dataManager.getPollResults());
+  }, [showResults]);
+
+  if (!teacherOnline) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+          <div className="text-6xl mb-4">⏳</div>
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Teacher Will Join Soon</h2>
+          <p className="text-gray-600 mb-6">Please wait while the teacher joins the session...</p>
+          <button
+            onClick={onLogout}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition duration-200"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800">Welcome, {studentName}!</h2>
-          <p className="text-gray-600">Waiting for the teacher to start a poll...</p>
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 p-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Welcome, {user.name}!</h2>
+                <p className="text-gray-600">{user.email}</p>
+              </div>
+              <button
+                onClick={onLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          {/* Waiting Message */}
+          <div className="bg-white rounded-lg shadow-xl p-8 text-center mb-6">
+            <div className="text-4xl mb-4">📊</div>
+            <p className="text-gray-600">Waiting for the teacher to start a poll...</p>
+          </div>
+
+          {/* Poll History */}
+          {pollHistory.length > 0 && (
+            <div className="bg-white rounded-lg shadow-xl p-6">
+              <h3 className="text-xl font-bold mb-4">Previous Polls</h3>
+              <div className="space-y-4">
+                {pollHistory.slice(-5).map((poll, index) => (
+                  <div key={index} className="border-l-4 border-green-500 pl-4 py-2">
+                    <h4 className="font-semibold">{poll.question}</h4>
+                    <p className="text-sm text-gray-600">{new Date(poll.timestamp).toLocaleString()}</p>
+                    <div className="mt-2 space-y-1">
+                      {Object.entries(poll.results).map(([option, votes]) => (
+                        <div key={option} className="flex justify-between text-sm">
+                          <span>{option}</span>
+                          <span className="font-medium">{votes} votes</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -265,14 +589,29 @@ const StudentDashboard = ({
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 p-4">
       <div className="max-w-2xl mx-auto">
+        {/* Header */}
         <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Hello, {studentName}!</h2>
-            <div className="text-lg font-semibold text-red-600">
-              {timeLeft > 0 ? `${timeLeft}s` : 'Time Up!'}
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold">Hello, {user.name}!</h2>
+              <p className="text-gray-600">{user.email}</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-lg font-semibold text-red-600">
+                {timeLeft > 0 ? `${timeLeft}s` : 'Time Up!'}
+              </div>
+              <button
+                onClick={onLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200"
+              >
+                Logout
+              </button>
             </div>
           </div>
-          
+        </div>
+
+        {/* Poll Question */}
+        <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
           <h3 className="text-lg font-semibold mb-4">{currentQuestion.question}</h3>
           
           {!hasAnswered && timeLeft > 0 && (
@@ -295,32 +634,53 @@ const StudentDashboard = ({
               <p className="text-green-600">✓ Your answer has been submitted!</p>
             </div>
           )}
-          
-          {showResults && (
-            <div className="mt-6">
-              <h4 className="text-lg font-semibold mb-3">Results:</h4>
-              <div className="space-y-2">
-                {currentQuestion.options.map((option, index) => (
+        </div>
+
+        {/* Results Display */}
+        {showResults && (
+          <div className="bg-white rounded-lg shadow-xl p-6">
+            <h4 className="text-lg font-semibold mb-3">Live Results:</h4>
+            <div className="space-y-3">
+              {currentQuestion.options.map((option, index) => {
+                const votes = results[option] || 0;
+                const totalVotes = Object.values(results).reduce((sum, v) => sum + v, 0);
+                const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                
+                return (
                   <div key={index} className="bg-gray-50 p-3 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <span className={selectedAnswer === option ? 'font-bold' : ''}>{option}</span>
-                      <span className="text-sm text-gray-600">{results[option] || 0} votes</span>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className={selectedAnswer === option ? 'font-bold text-green-600' : ''}>
+                        {option}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {votes} votes ({percentage}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          selectedAnswer === option ? 'bg-green-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+            <div className="mt-4 text-center text-gray-600">
+              Total responses: {Object.values(results).reduce((sum, v) => sum + v, 0)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
+// Main App Component
 const App = () => {
-  const [role, setRole] = useState('');
-  const [studentName, setStudentName] = useState('');
-  const [nameSubmitted, setNameSubmitted] = useState(false);
+  const [user, setUser] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState('');
@@ -328,12 +688,29 @@ const App = () => {
   const [showResults, setShowResults] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [connectedStudents, setConnectedStudents] = useState([]);
-  const [pastPolls, setPastPolls] = useState([]);
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
+  const [teacherOnline, setTeacherOnline] = useState(false);
+
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('polling_current_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
 
   // Real-time event listeners
   useEffect(() => {
-    if (role === 'student') {
+    if (user?.role === 'student') {
+      // Save student data
+      dataManager.saveStudentData(user);
+      
+      // Listen for teacher presence
+      const presenceHandler = socket.on('teacher-presence', (data) => {
+        setTeacherOnline(data.status === 'online');
+      });
+
+      // Listen for new polls
       const questionHandler = socket.on('create-poll', (pollData) => {
         setCurrentQuestion(pollData);
         setTimeLeft(pollData.timeLimit);
@@ -343,6 +720,7 @@ const App = () => {
         setResults({});
       });
       
+      // Listen for poll end
       const endHandler = socket.on('end-poll', () => {
         setCurrentQuestion(null);
         setShowResults(false);
@@ -350,27 +728,49 @@ const App = () => {
         setSelectedAnswer('');
         setResults({});
       });
+
+      // Listen for real-time results
+      const resultsHandler = socket.on('poll-results', (resultData) => {
+        setResults(resultData);
+        setShowResults(true);
+      });
+
+      // Notify teacher of student join
+      socket.emit('student-join', { 
+        name: user.name,
+        email: user.email,
+        id: user.id || Date.now().toString()
+      });
       
       return () => {
+        socket.off('teacher-presence', presenceHandler);
         socket.off('create-poll', questionHandler);
         socket.off('end-poll', endHandler);
+        socket.off('poll-results', resultsHandler);
       };
     }
-  }, [role]);
+  }, [user]);
 
   // Teacher listeners for student answers
   useEffect(() => {
-    if (role === 'teacher') {
+    if (user?.role === 'teacher') {
       const answerHandler = socket.on('submit-answer', (answerData) => {
-        setResults(prev => ({
-          ...prev,
-          [answerData.answer]: (prev[answerData.answer] || 0) + 1
-        }));
+        setResults(prev => {
+          const newResults = {
+            ...prev,
+            [answerData.answer]: (prev[answerData.answer] || 0) + 1
+          };
+          
+          // Broadcast updated results to all students
+          socket.emit('poll-results', newResults);
+          
+          return newResults;
+        });
         
         // Update student status
         setConnectedStudents(prev => 
           prev.map(student => 
-            student.name === answerData.studentName 
+            student.email === answerData.studentEmail 
               ? { ...student, answered: true }
               : student
           )
@@ -379,8 +779,13 @@ const App = () => {
       
       const joinHandler = socket.on('student-join', (studentData) => {
         setConnectedStudents(prev => [
-          ...prev.filter(s => s.name !== studentData.name),
-          { id: Date.now().toString(), name: studentData.name, answered: false }
+          ...prev.filter(s => s.email !== studentData.email),
+          { 
+            id: studentData.id, 
+            name: studentData.name, 
+            email: studentData.email,
+            answered: false 
+          }
         ]);
       });
       
@@ -389,7 +794,7 @@ const App = () => {
         socket.off('student-join', joinHandler);
       };
     }
-  }, [role]);
+  }, [user]);
 
   // Timer effect
   useEffect(() => {
@@ -408,16 +813,39 @@ const App = () => {
     return () => clearInterval(timer);
   }, [currentQuestion, timeLeft, hasAnswered]);
 
-  const handleRoleSelection = (selectedRole) => {
-    setRole(selectedRole);
+  // Check for existing teacher on student login
+  useEffect(() => {
+    if (user?.role === 'student') {
+      const teacherPresence = socket.getCurrentData('teacher-presence');
+      if (teacherPresence) {
+        setTeacherOnline(teacherPresence.status === 'online');
+      }
+    }
+  }, [user]);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    localStorage.setItem('polling_current_user', JSON.stringify(userData));
   };
 
-  const handleStudentNameSubmit = () => {
-    if (studentName.trim()) {
-      setNameSubmitted(true);
-      // Actually send join notification to teacher
-      socket.emit('student-join', { name: studentName });
+  const handleLogout = () => {
+    if (user?.role === 'teacher') {
+      socket.emit('teacher-presence', { teacherName: user.name, status: 'offline' });
     }
+    
+    setUser(null);
+    localStorage.removeItem('polling_current_user');
+    
+    // Reset all states
+    setCurrentQuestion(null);
+    setHasAnswered(false);
+    setSelectedAnswer('');
+    setResults({});
+    setShowResults(false);
+    setTimeLeft(60);
+    setConnectedStudents([]);
+    setIsCreatingPoll(false);
+    setTeacherOnline(false);
   };
 
   const handleAnswerSubmit = (answer) => {
@@ -425,11 +853,12 @@ const App = () => {
     setHasAnswered(true);
     setShowResults(true);
     
-    // Actually send answer to teacher
+    // Send answer to teacher
     socket.emit('submit-answer', { 
       questionId: currentQuestion.id, 
       answer,
-      studentName 
+      studentName: user.name,
+      studentEmail: user.email
     });
   };
 
@@ -439,7 +868,9 @@ const App = () => {
       question: pollData.question,
       options: pollData.options,
       timeLimit: pollData.timeLimit,
-      active: true
+      active: true,
+      createdBy: user.name,
+      createdAt: Date.now()
     };
     
     setCurrentQuestion(newPoll);
@@ -454,55 +885,59 @@ const App = () => {
       prev.map(student => ({ ...student, answered: false }))
     );
     
-    // Actually send to students
+    // Send to students
     socket.emit('create-poll', newPoll);
   };
 
   const handleEndPoll = () => {
     if (currentQuestion) {
-      setPastPolls(prev => [...prev, { ...currentQuestion, results }]);
+      // Save poll results
+      const pollResult = {
+        question: currentQuestion.question,
+        options: currentQuestion.options,
+        results: results,
+        totalResponses: Object.values(results).reduce((sum, v) => sum + v, 0),
+        createdBy: user.name,
+        endedAt: Date.now()
+      };
+      
+      dataManager.savePollResult(pollResult);
+      
+      // Reset states
       setCurrentQuestion(null);
       setShowResults(false);
       setHasAnswered(false);
       setResults({});
       
-      // Actually send end notification to students
+      // Notify students
       socket.emit('end-poll', { questionId: currentQuestion.id });
     }
   };
 
-  if (!role) {
-    return <RoleSelection onRoleSelect={handleRoleSelection} />;
+  if (!user) {
+    return <LoginForm onLogin={handleLogin} />;
   }
 
-  if (role === 'student' && !nameSubmitted) {
-    return (
-      <StudentNameInput 
-        studentName={studentName}
-        setStudentName={setStudentName}
-        onSubmit={handleStudentNameSubmit}
-      />
-    );
-  }
-
-  if (role === 'teacher') {
+  if (user.role === 'teacher') {
     return (
       <TeacherDashboard 
+        user={user}
         currentQuestion={currentQuestion}
         connectedStudents={connectedStudents}
         results={results}
-        pastPolls={pastPolls}
+        pastPolls={dataManager.getPollResults()}
         isCreatingPoll={isCreatingPoll}
         setIsCreatingPoll={setIsCreatingPoll}
         onCreatePoll={handleCreatePoll}
         onEndPoll={handleEndPoll}
+        onLogout={handleLogout}
       />
     );
   }
 
   return (
     <StudentDashboard 
-      studentName={studentName}
+      user={user}
       currentQuestion={currentQuestion}
       hasAnswered={hasAnswered}
       selectedAnswer={selectedAnswer}
@@ -510,6 +945,8 @@ const App = () => {
       showResults={showResults}
       timeLeft={timeLeft}
       onAnswerSubmit={handleAnswerSubmit}
+      onLogout={handleLogout}
+      teacherOnline={teacherOnline}
     />
   );
 };
