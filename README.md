@@ -1,70 +1,176 @@
-# Getting Started with Create React App
+# Live Polling System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A real-time polling system built with React that allows teachers to create polls and students to participate in live voting sessions.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+### For Teachers
+- Create and manage live polls with multiple choice questions
+- Set custom time limits for polls
+- View real-time results and student participation
+- Monitor connected students
+- View past poll results
+- End polls manually
 
-### `npm start`
+### For Students
+- Join polling sessions with their name
+- Answer questions in real-time
+- View live results after submitting answers
+- See countdown timer for active polls
+- Visual feedback for submitted answers
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Technology Stack
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **Frontend**: React 18 with Hooks
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **State Management**: React useState and useEffect
+- **Real-time Communication**: Socket.IO (mock implementation included)
 
-### `npm test`
+## Installation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd live-polling-system
+```
 
-### `npm run build`
+2. Install dependencies:
+```bash
+npm install
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. Start the development server:
+```bash
+npm start
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+4. Open your browser and navigate to `http://localhost:3000`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Usage
 
-### `npm run eject`
+### Getting Started
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. **Role Selection**: Choose whether you're a teacher or student
+2. **For Students**: Enter your name to join the session
+3. **For Teachers**: Access the dashboard to create and manage polls
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Creating a Poll (Teacher)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+1. Click "Create Poll" button
+2. Enter your question
+3. Add multiple choice options (minimum 2)
+4. Set time limit (30-300 seconds)
+5. Click "Start Poll"
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Participating in a Poll (Student)
 
-## Learn More
+1. Wait for teacher to start a poll
+2. Read the question and available options
+3. Click on your chosen answer
+4. View real-time results after submission
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Project Structure
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```
+live-polling-system/
+├── public/
+│   ├── index.html
+│   └── favicon.ico
+├── src/
+│   ├── components/
+│   │   ├── RoleSelection.js      # Role selection component
+│   │   ├── StudentNameInput.js   # Student name input form
+│   │   ├── TeacherDashboard.js   # Teacher interface
+│   │   └── StudentDashboard.js   # Student interface
+│   ├── App.js                    # Main app component
+│   ├── index.js                  # React entry point
+│   └── index.css                 # Global styles
+├── package.json
+└── README.md
+```
 
-### Code Splitting
+## Key Components
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### App.js
+Main application component that manages:
+- Role selection
+- Student name collection
+- Current question state
+- Timer functionality
+- Mock Socket.IO integration
 
-### Analyzing the Bundle Size
+### RoleSelection.js
+Initial screen for choosing user role (teacher or student)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### StudentNameInput.js
+Form for students to enter their name before joining
 
-### Making a Progressive Web App
+### TeacherDashboard.js
+Teacher interface featuring:
+- Poll creation form
+- Live results display
+- Connected students list
+- Past polls history
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### StudentDashboard.js
+Student interface featuring:
+- Question display
+- Answer selection
+- Live results viewing
+- Timer countdown
 
-### Advanced Configuration
+## Mock Data
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+The application includes mock data for demonstration:
+- Sample questions and options
+- Simulated student connections
+- Mock voting results
+- Fake Socket.IO events
 
-### Deployment
+## Real-time Features (Mock Implementation)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+The current implementation includes mock Socket.IO functionality. To implement real-time features, you would need to:
 
-### `npm run build` fails to minify
+1. Set up a Node.js server with Socket.IO
+2. Replace mock socket events with actual socket connections
+3. Implement real-time data synchronization
+4. Add proper error handling and reconnection logic
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Styling
+
+The application uses Tailwind CSS for styling with:
+- Responsive design
+- Gradient backgrounds
+- Smooth animations and transitions
+- Modern card-based layouts
+- Interactive hover effects
+
+## Browser Support
+
+- Chrome (recommended)
+- Firefox
+- Safari
+- Edge
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Future Enhancements
+
+- Real Socket.IO integration
+- Database persistence
+- User authentication
+- Poll analytics
+- Export results functionality
+- Mobile app version
+- Multiple question types (true/false, rating scales)
+- Real-time chat during polls
