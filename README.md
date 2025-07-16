@@ -6,11 +6,12 @@ A real-time polling system built with React that allows teachers to create polls
 
 ### For Teachers
 - Create and manage live polls with multiple choice questions
-- Set custom time limits for polls
+- Set custom time limits for polls (30-300 seconds)
 - View real-time results and student participation
 - Monitor connected students
 - View past poll results
 - End polls manually
+- Access comprehensive dashboard
 
 ### For Students
 - Join polling sessions with their name
@@ -19,20 +20,20 @@ A real-time polling system built with React that allows teachers to create polls
 - See countdown timer for active polls
 - Visual feedback for submitted answers
 
-## Technology Stack
+## Tech Stack
 
-- **Frontend**: React 18 with Hooks
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
-- **State Management**: React useState and useEffect
-- **Real-time Communication**: Socket.IO (mock implementation included)
+- **Frontend:** React 18 with Hooks
+- **Styling:** Tailwind CSS
+- **Icons:** Lucide React
+- **State Management:** React useState and useEffect
+- **Real-time Communication:** Socket.IO (mock implementation included)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd live-polling-system
+git clone https://github.com/Priyank922/Live-Polling-System.git
+cd Live-Polling-System
 ```
 
 2. Install dependencies:
@@ -50,13 +51,11 @@ npm start
 ## Usage
 
 ### Getting Started
-
-1. **Role Selection**: Choose whether you're a teacher or student
-2. **For Students**: Enter your name to join the session
-3. **For Teachers**: Access the dashboard to create and manage polls
+1. **Role Selection:** Choose whether you're a teacher or student
+2. **For Students:** Enter your name to join the session
+3. **For Teachers:** Access the dashboard to create and manage polls
 
 ### Creating a Poll (Teacher)
-
 1. Click "Create Poll" button
 2. Enter your question
 3. Add multiple choice options (minimum 2)
@@ -64,7 +63,6 @@ npm start
 5. Click "Start Poll"
 
 ### Participating in a Poll (Student)
-
 1. Wait for teacher to start a poll
 2. Read the question and available options
 3. Click on your chosen answer
@@ -90,7 +88,7 @@ live-polling-system/
 └── README.md
 ```
 
-## Key Components
+## Component Details
 
 ### App.js
 Main application component that manages:
@@ -128,7 +126,7 @@ The application includes mock data for demonstration:
 - Mock voting results
 - Fake Socket.IO events
 
-## Real-time Features (Mock Implementation)
+## Real-time Implementation
 
 The current implementation includes mock Socket.IO functionality. To implement real-time features, you would need to:
 
@@ -156,9 +154,11 @@ The application uses Tailwind CSS for styling with:
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Submit a pull request
+4. Commit your changes (`git commit -m 'Add some amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Submit a pull request
 
 ## License
 
@@ -174,3 +174,15 @@ This project is licensed under the MIT License.
 - Mobile app version
 - Multiple question types (true/false, rating scales)
 - Real-time chat during polls
+
+## Live Preview
+
+Check out the live demo: [LIVE-PREVIEW](https://live-polling-system-tawny.vercel.app/)
+
+## Support
+
+If you have any questions or need help with setup, please open an issue in the repository.
+
+---
+
+Built with ❤️ by [Priyank922](https://github.com/Priyank922)
