@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback  } from 'react';
+
 
 // Enhanced real-time communication using localStorage
 const createRealTimeConnection = () => {
@@ -51,18 +52,18 @@ const createRealTimeConnection = () => {
 // Data management utilities
 const dataManager = {
   saveUser: (userData) => {
-    const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
-    const existingIndex = users.findIndex(u => u.email === userData.email);
-    
-    if (existingIndex >= 0) {
-      users[existingIndex] = { ...users[existingIndex], ...userData };
-    } else {
-      users.push({ ...userData, id: Date.now().toString() });
-    }
-    
-    localStorage.setItem('polling_users', JSON.stringify(users));
-    return userData;
-  },
+  const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
+  const existingIndex = users.findIndex(u => u.email === userData.email);
+  
+  if (existingIndex >= 0) {
+    users[existingIndex] = { ...users[existingIndex], ...userData };
+  } else {
+    users.push({ ...userData, id: Date.now().toString() });
+  }
+  
+  localStorage.setItem('polling_users', JSON.stringify(users));
+  return userData;
+},
 
   getUser: (email) => {
     const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
@@ -85,6 +86,7 @@ const dataManager = {
     
     localStorage.setItem('polling_student_data', JSON.stringify(students));
   },
+  
 
   getStudentData: (email) => {
     const students = JSON.parse(localStorage.getItem('polling_student_data') || '[]');
@@ -103,6 +105,72 @@ const dataManager = {
 
   getPollResults: () => {
     return JSON.parse(localStorage.getItem('polling_results') || '[]');
+  },
+  removePollResult: (pollId) => {
+  const results = JSON.parse(localStorage.getItem('polling_results') || '[]');
+  const updatedResults = results.filter(poll => poll.id !== pollId);
+  localStorage.setItem('polling_results', JSON.stringify(updatedResults));
+},
+
+clearAllPollResults: () => {
+  localStorage.removeItem('polling_results');
+}
+  
+};
+
+// ADD THE authManager CODE HERE
+const authManager = {
+  hashPassword: (password) => {
+    // Simple hash function - in production, use proper hashing
+    return btoa(password).split('').reverse().join('');
+  },
+  validatePassword: (password, hash) => {
+    return authManager.hashPassword(password) === hash;
+  },
+ authenticateUser: (email, password) => {
+  const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
+  const user = users.find(u => u.email === email);
+  
+  if (!user) {
+    return { success: false, message: 'User not found' };
+  }
+  
+  if (!user.password) {
+    return { success: false, message: 'Please register first' };
+  }
+  
+  if (authManager.validatePassword(password, user.password)) {
+    return { success: true, user: user };
+  }
+  
+  return { success: false, message: 'Invalid password' };
+},
+  registerUser: (userData) => {
+    const users = JSON.parse(localStorage.getItem('polling_users') || '[]');
+    const existingUser = users.find(u => u.email === userData.email);
+    
+    if (existingUser && existingUser.password) {
+      return { success: false, message: 'User already exists' };
+    }
+    
+    const hashedPassword = authManager.hashPassword(userData.password);
+    const newUser = {
+      ...userData,
+      password: hashedPassword,
+      id: Date.now().toString(),
+      createdAt: Date.now()
+    };
+    
+    if (existingUser) {
+      // Update existing user with password
+      const userIndex = users.findIndex(u => u.email === userData.email);
+      users[userIndex] = { ...existingUser, ...newUser };
+    } else {
+      users.push(newUser);
+    }
+    
+    localStorage.setItem('polling_users', JSON.stringify(users));
+    return { success: true, user: newUser };
   }
 };
 
@@ -113,22 +181,42 @@ const LoginForm = ({ onLogin }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     role: ''
   });
   const [isLogin, setIsLogin] = useState(true);
+  const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.name.trim() && formData.email.trim() && formData.role) {
-      const userData = dataManager.saveUser(formData);
-      onLogin(userData);
+    setError('');
+    
+    if (!formData.email.trim() || !formData.password.trim() || !formData.role) {
+      setError('Please fill all required fields');
+      return;
     }
-  };
 
-  const handleQuickLogin = () => {
-    const existingUser = dataManager.getUser(formData.email);
-    if (existingUser) {
-      onLogin(existingUser);
+    if (isLogin) {
+      // Login
+      const result = authManager.authenticateUser(formData.email, formData.password);
+      if (result.success) {
+        onLogin(result.user);
+      } else {
+        setError(result.message);
+      }
+    } else {
+      // Register
+      if (!formData.name.trim()) {
+        setError('Name is required for registration');
+        return;
+      }
+      
+      const result = authManager.registerUser(formData);
+      if (result.success) {
+        onLogin(result.user);
+      } else {
+        setError(result.message);
+      }
     }
   };
 
@@ -137,17 +225,25 @@ const LoginForm = ({ onLogin }) => {
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
         <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Live Polling System</h1>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              required
-            />
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
           </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                required={!isLogin}
+              />
+            </div>
+          )}
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -155,6 +251,17 @@ const LoginForm = ({ onLogin }) => {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               required
             />
@@ -178,20 +285,22 @@ const LoginForm = ({ onLogin }) => {
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
           >
-            {isLogin ? 'Login' : 'Register'} & Continue
+            {isLogin ? 'Login' : 'Register'}
           </button>
         </form>
         
-        {formData.email && (
-          <div className="mt-4">
-            <button
-              onClick={handleQuickLogin}
-              className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-            >
-              Quick Login (if account exists)
-            </button>
-          </div>
-        )}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+              setFormData({ name: '', email: '', password: '', role: '' });
+            }}
+            className="text-purple-600 hover:text-purple-800 font-medium"
+          >
+            {isLogin ? "Don't have an account? Register" : "Already have an account? Login"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -208,7 +317,9 @@ const TeacherDashboard = ({
   setIsCreatingPoll, 
   onCreatePoll, 
   onEndPoll,
-  onLogout
+  onLogout,
+  onRemoveStudent,
+  onKickStudent
 }) => {
   const [pollData, setPollData] = useState({
     question: '',
@@ -245,17 +356,36 @@ const TeacherDashboard = ({
     }));
   };
 
+  const handleRemovePoll = (pollId) => {
+  if (window.confirm('Are you sure you want to remove this poll from history?')) {
+    dataManager.removePollResult(pollId);
+    window.location.reload();
+  }
+};
+
+const handleClearAllPolls = () => {
+  if (window.confirm('Are you sure you want to clear all poll history? This action cannot be undone.')) {
+    dataManager.clearAllPollResults();
+    window.location.reload();
+  }
+};
+
   const allStudentData = dataManager.getAllStudentData();
   const pollHistory = dataManager.getPollResults();
-
   // Signal teacher presence
-  useEffect(() => {
-    socket.emit('teacher-presence', { teacherName: user.name, status: 'online' });
-    
-    return () => {
-      socket.emit('teacher-presence', { teacherName: user.name, status: 'offline' });
-    };
-  }, [user.name]);
+useEffect(() => {
+  localStorage.setItem('teacher_online', 'true');
+  window.dispatchEvent(new CustomEvent('teacher-status-change', { 
+    detail: { status: 'online' } 
+  }));
+  
+  return () => {
+    localStorage.removeItem('teacher_online');
+    window.dispatchEvent(new CustomEvent('teacher-status-change', { 
+      detail: { status: 'offline' } 
+    }));
+  };
+}, [user.name]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -295,60 +425,86 @@ const TeacherDashboard = ({
           <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
             <h2 className="text-xl font-bold mb-4">All Student Data ({allStudentData.length})</h2>
             <div className="overflow-x-auto">
-              <table className="w-full table-auto">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-2 text-left">Name</th>
-                    <th className="px-4 py-2 text-left">Email</th>
-                    <th className="px-4 py-2 text-left">Joined</th>
-                    <th className="px-4 py-2 text-left">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allStudentData.map((student, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="px-4 py-2">{student.name}</td>
-                      <td className="px-4 py-2">{student.email}</td>
-                      <td className="px-4 py-2">{new Date(student.joinedAt).toLocaleString()}</td>
-                      <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          connectedStudents.find(s => s.email === student.email)
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {connectedStudents.find(s => s.email === student.email) ? 'Online' : 'Offline'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <tbody>
+  {allStudentData.map((student, index) => (
+    <tr key={index} className="border-b">
+      <td className="px-4 py-2">{student.name}</td>
+      <td className="px-4 py-2">{student.email}</td>
+      <td className="px-4 py-2">{new Date(student.joinedAt).toLocaleString()}</td>
+      <td className="px-4 py-2">
+        <span className={`px-2 py-1 rounded-full text-xs ${
+          connectedStudents.find(s => s.email === student.email)
+            ? 'bg-green-100 text-green-800'
+            : 'bg-red-100 text-red-800'
+        }`}>
+          {connectedStudents.find(s => s.email === student.email) ? 'Online' : 'Offline'}
+        </span>
+      </td>
+      <td className="px-4 py-2">
+        <button
+          onClick={() => onRemoveStudent(student.email)}
+          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm mr-2"
+        >
+          Remove
+        </button>
+        {connectedStudents.find(s => s.email === student.email) && (
+          <button
+            onClick={() => onKickStudent(student.email)}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm"
+          >
+            Kick
+          </button>
+        )}
+      </td>
+    </tr>
+  ))}
+</tbody>
             </div>
           </div>
         )}
 
         {/* Poll History */}
         {showPollHistory && (
-          <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
-            <h2 className="text-xl font-bold mb-4">Poll History ({pollHistory.length})</h2>
-            <div className="space-y-4">
-              {pollHistory.map((poll, index) => (
-                <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                  <h3 className="font-semibold">{poll.question}</h3>
-                  <p className="text-sm text-gray-600">{new Date(poll.timestamp).toLocaleString()}</p>
-                  <div className="mt-2 space-y-1">
-                    {Object.entries(poll.results).map(([option, votes]) => (
-                      <div key={option} className="flex justify-between text-sm">
-                        <span>{option}</span>
-                        <span className="font-medium">{votes} votes</span>
-                      </div>
-                    ))}
+  <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xl font-bold">Poll History ({pollHistory.length})</h2>
+      {pollHistory.length > 0 && (
+        <button
+          onClick={handleClearAllPolls}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200 text-sm"
+        >
+          Clear All History
+        </button>
+      )}
+    </div>
+    <div className="space-y-4">
+      {pollHistory.map((poll, index) => (
+        <div key={index} className="border-l-4 border-blue-500 pl-4 py-2 relative">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h3 className="font-semibold">{poll.question}</h3>
+              <p className="text-sm text-gray-600">{new Date(poll.timestamp).toLocaleString()}</p>
+              <div className="mt-2 space-y-1">
+                {Object.entries(poll.results).map(([option, votes]) => (
+                  <div key={option} className="flex justify-between text-sm">
+                    <span>{option}</span>
+                    <span className="font-medium">{votes} votes</span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => handleRemovePoll(poll.id)}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs ml-4"
+            >
+              Remove
+            </button>
           </div>
-        )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
         {/* Create Poll Button */}
         {!currentQuestion && !isCreatingPoll && (
@@ -477,18 +633,26 @@ const TeacherDashboard = ({
           <h2 className="text-xl font-bold mb-4">Connected Students ({connectedStudents.length})</h2>
           <div className="space-y-2">
             {connectedStudents.map((student) => (
-              <div key={student.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                <div>
-                  <span className="font-medium">{student.name}</span>
-                  <span className="text-sm text-gray-600 ml-2">({student.email})</span>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-sm ${
-                  student.answered ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {student.answered ? 'Answered' : 'Waiting'}
-                </span>
-              </div>
-            ))}
+  <div key={student.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+    <div>
+      <span className="font-medium">{student.name}</span>
+      <span className="text-sm text-gray-600 ml-2">({student.email})</span>
+    </div>
+    <div className="flex items-center space-x-2">
+      <span className={`px-3 py-1 rounded-full text-sm ${
+        student.answered ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+      }`}>
+        {student.answered ? 'Answered' : 'Waiting'}
+      </span>
+      <button
+        onClick={() => onKickStudent(student.email)}
+        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+      >
+        Kick
+      </button>
+    </div>
+  </div>
+))}
           </div>
         </div>
       </div>
@@ -690,7 +854,49 @@ const App = () => {
   const [connectedStudents, setConnectedStudents] = useState([]);
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
   const [teacherOnline, setTeacherOnline] = useState(false);
+  const handleLogout = useCallback(() => {
+  if (user?.role === 'teacher') {
+    localStorage.removeItem('teacher_online');
+    window.dispatchEvent(new CustomEvent('teacher-status-change', { 
+      detail: { status: 'offline' } 
+    }));
+  }
+  
+  setUser(null);
+  localStorage.removeItem('polling_current_user');
+  
+  // Reset all states
+  setCurrentQuestion(null);
+  setHasAnswered(false);
+  setSelectedAnswer('');
+  setResults({});
+  setShowResults(false);
+  setTimeLeft(60);
+  setConnectedStudents([]);
+  setIsCreatingPoll(false);
+  setTeacherOnline(false);
+}, [user]);
 
+  const handleRemoveStudent = (studentEmail) => {
+  // Remove from connected students
+  setConnectedStudents(prev => prev.filter(s => s.email !== studentEmail));
+  
+  // Remove from localStorage
+  const students = JSON.parse(localStorage.getItem('polling_student_data') || '[]');
+  const updatedStudents = students.filter(s => s.email !== studentEmail);
+  localStorage.setItem('polling_student_data', JSON.stringify(updatedStudents));
+  
+  // Kick student if they're online
+  socket.emit('kick-student', { studentEmail });
+};
+
+const handleKickStudent = (studentEmail) => {
+  // Remove from connected list
+  setConnectedStudents(prev => prev.filter(s => s.email !== studentEmail));
+  
+  // Send kick signal
+  socket.emit('kick-student', { studentEmail });
+};
   // Load user from localStorage on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('polling_current_user');
@@ -701,56 +907,71 @@ const App = () => {
 
   // Real-time event listeners
   useEffect(() => {
-    if (user?.role === 'student') {
-      // Save student data
-      dataManager.saveStudentData(user);
-      
-      // Listen for teacher presence
-      const presenceHandler = socket.on('teacher-presence', (data) => {
-        setTeacherOnline(data.status === 'online');
-      });
+  if (user?.role === 'student') {
+    // Save student data
+    dataManager.saveStudentData(user);
+    
+    // Listen for teacher presence using window events
+    const handleTeacherStatus = (event) => {
+      setTeacherOnline(event.detail.status === 'online');
+    };
+    
+    window.addEventListener('teacher-status-change', handleTeacherStatus);
+    
+    // Check initial status
+    const isOnline = localStorage.getItem('teacher_online') === 'true';
+    setTeacherOnline(isOnline);
 
-      // Listen for new polls
-      const questionHandler = socket.on('create-poll', (pollData) => {
-        setCurrentQuestion(pollData);
-        setTimeLeft(pollData.timeLimit);
-        setHasAnswered(false);
-        setShowResults(false);
-        setSelectedAnswer('');
-        setResults({});
-      });
-      
-      // Listen for poll end
-      const endHandler = socket.on('end-poll', () => {
-        setCurrentQuestion(null);
-        setShowResults(false);
-        setHasAnswered(false);
-        setSelectedAnswer('');
-        setResults({});
-      });
+    // Listen for new polls
+    const questionHandler = socket.on('create-poll', (pollData) => {
+      setCurrentQuestion(pollData);
+      setTimeLeft(pollData.timeLimit);
+      setHasAnswered(false);
+      setShowResults(false);
+      setSelectedAnswer('');
+      setResults({});
+    });
+    
+    // Listen for poll end
+    const endHandler = socket.on('end-poll', () => {
+      setCurrentQuestion(null);
+      setShowResults(false);
+      setHasAnswered(false);
+      setSelectedAnswer('');
+      setResults({});
+    });
 
-      // Listen for real-time results
-      const resultsHandler = socket.on('poll-results', (resultData) => {
-        setResults(resultData);
-        setShowResults(true);
-      });
+    // Listen for real-time results
+    // Listen for real-time results
+const resultsHandler = socket.on('poll-results', (resultData) => {
+  setResults(resultData);
+  setShowResults(true);
+});
 
-      // Notify teacher of student join
-      socket.emit('student-join', { 
-        name: user.name,
-        email: user.email,
-        id: user.id || Date.now().toString()
-      });
-      
-      return () => {
-        socket.off('teacher-presence', presenceHandler);
-        socket.off('create-poll', questionHandler);
-        socket.off('end-poll', endHandler);
-        socket.off('poll-results', resultsHandler);
-      };
-    }
-  }, [user]);
+// Listen for kick signal
+const kickHandler = socket.on('kick-student', (data) => {
+  if (data.studentEmail === user.email) {
+    alert('You have been removed from the session by the teacher');
+    handleLogout();
+  }
+});
 
+    // Notify teacher of student join
+    socket.emit('student-join', { 
+      name: user.name,
+      email: user.email,
+      id: user.id || Date.now().toString()
+    });
+    
+    return () => {
+      window.removeEventListener('teacher-status-change', handleTeacherStatus);
+      socket.off('create-poll', questionHandler);
+      socket.off('end-poll', endHandler);
+      socket.off('poll-results', resultsHandler);
+      socket.off('kick-student', kickHandler);
+    };
+  }
+}, [user, handleLogout]);
   // Teacher listeners for student answers
   useEffect(() => {
     if (user?.role === 'teacher') {
@@ -813,41 +1034,12 @@ const App = () => {
     return () => clearInterval(timer);
   }, [currentQuestion, timeLeft, hasAnswered]);
 
-  // Check for existing teacher on student login
-  useEffect(() => {
-    if (user?.role === 'student') {
-      const teacherPresence = socket.getCurrentData('teacher-presence');
-      if (teacherPresence) {
-        setTeacherOnline(teacherPresence.status === 'online');
-      }
-    }
-  }, [user]);
-
   const handleLogin = (userData) => {
     setUser(userData);
     localStorage.setItem('polling_current_user', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
-    if (user?.role === 'teacher') {
-      socket.emit('teacher-presence', { teacherName: user.name, status: 'offline' });
-    }
-    
-    setUser(null);
-    localStorage.removeItem('polling_current_user');
-    
-    // Reset all states
-    setCurrentQuestion(null);
-    setHasAnswered(false);
-    setSelectedAnswer('');
-    setResults({});
-    setShowResults(false);
-    setTimeLeft(60);
-    setConnectedStudents([]);
-    setIsCreatingPoll(false);
-    setTeacherOnline(false);
-  };
-
+  
   const handleAnswerSubmit = (answer) => {
     setSelectedAnswer(answer);
     setHasAnswered(true);
@@ -921,17 +1113,19 @@ const App = () => {
   if (user.role === 'teacher') {
     return (
       <TeacherDashboard 
-        user={user}
-        currentQuestion={currentQuestion}
-        connectedStudents={connectedStudents}
-        results={results}
-        pastPolls={dataManager.getPollResults()}
-        isCreatingPoll={isCreatingPoll}
-        setIsCreatingPoll={setIsCreatingPoll}
-        onCreatePoll={handleCreatePoll}
-        onEndPoll={handleEndPoll}
-        onLogout={handleLogout}
-      />
+  user={user}
+  currentQuestion={currentQuestion}
+  connectedStudents={connectedStudents}
+  results={results}
+  pastPolls={dataManager.getPollResults()}
+  isCreatingPoll={isCreatingPoll}
+  setIsCreatingPoll={setIsCreatingPoll}
+  onCreatePoll={handleCreatePoll}
+  onEndPoll={handleEndPoll}
+  onLogout={handleLogout}
+  onRemoveStudent={handleRemoveStudent}
+  onKickStudent={handleKickStudent}
+/>
     );
   }
 
